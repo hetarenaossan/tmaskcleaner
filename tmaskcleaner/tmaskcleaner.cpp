@@ -14,6 +14,7 @@ public:
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env);
 
     ~TMaskCleaner() {
+        delete [] buffer;
         if (lookup != nullptr) {
             delete[] lookup;
         }
@@ -21,24 +22,24 @@ public:
 private:
     unsigned int m_length;
     unsigned int m_thresh;
+    Coordinates* buffer;
     BYTE *lookup;
     int m_w;
 
     void ClearMask(BYTE *dst, const BYTE *src, int width, int height, int src_pitch, int dst_pitch);
-    void ProcessPixel(const BYTE *src, int x, int y, int pitch, int w, int h, vector<Coordinates> &coordinates, vector<Coordinates> &white_pixels);
 
-    bool IsWhite(BYTE value) {
+    inline bool IsWhite(BYTE value) {
         return value >= m_thresh;
     }
 
-    bool Visited(int x, int y) {
+    inline bool Visited(int x, int y) {
         unsigned int normal_pos = y * m_w + x;
         unsigned int byte_pos = normal_pos / 8;
 
         return lookup[byte_pos] & (1 << (normal_pos - byte_pos*8));
     }
 
-    void Visit(int x, int y) {
+    inline void Visit(int x, int y) {
         unsigned int normal_pos = y * m_w + x;
         unsigned int byte_pos = normal_pos / 8;
 
@@ -46,7 +47,12 @@ private:
     }
 };
 
-TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironment* env) : GenericVideoFilter(child), m_length(length), m_thresh(thresh), lookup(nullptr) {
+TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironment* env) :
+    GenericVideoFilter(child),
+    m_length(length),
+    m_thresh(thresh),
+    lookup(nullptr)
+{
     if (!child->GetVideoInfo().IsYV12()) {
         env->ThrowError("Only YV12 and YV24 is supported!");
     }
@@ -54,6 +60,7 @@ TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironme
         env->ThrowError("Invalid arguments!");
     }
     lookup = new BYTE[child->GetVideoInfo().height * child->GetVideoInfo().width / 8];
+    buffer = new Coordinates[length];
     m_w = child->GetVideoInfo().width;
 }
 
@@ -68,55 +75,57 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
     return dst;
 }
 
-void TMaskCleaner::ProcessPixel(const BYTE *src, int x, int y, int pitch, int w, int h, vector<Coordinates> &coordinates, vector<Coordinates> &white_pixels) {
-    coordinates.clear();
-    white_pixels.clear();
-
-    coordinates.emplace_back(x, y);
-
-    while (!coordinates.empty()) {
-        /* pop last coordinates */
-        Coordinates current = coordinates.back();
-        coordinates.pop_back();
-
-        /* check surrounding positions */
-        int x_min = current.first  == 0 ? 0 : current.first - 1;
-        int x_max = current.first  == w - 1 ? w : current.first + 2;
-        int y_min = current.second == 0 ? 0 : current.second - 1;
-        int y_max = current.second == h - 1 ? h : current.second + 2;
-
-        for (int j = y_min; j < y_max; ++j ) {
-            for (int i = x_min; i < x_max; ++i ) {
-                if (!Visited(i,j) && IsWhite(src[j * pitch + i])) {
-                    coordinates.emplace_back(i, j);
-                    white_pixels.emplace_back(i, j);
-                    Visit(i,j);
-                }
-            }
-        }
-    }
-}
-
 void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_pitch, int dst_pitch) {
     vector<Coordinates> coordinates;
-    vector<Coordinates> white_pixels;
-
+    int b;
+    Coordinates current;
     for(int y = 0; y < h; ++y) {
         for(int x = 0; x < w; ++x) {
-            if (Visited(x,y) || !IsWhite(src[src_pitch * y + x])) {
+            if (Visited(x,y)) {
                 continue;
             }
-            ProcessPixel(src, x, y, src_pitch, w,h, coordinates, white_pixels);
-            if (white_pixels.size() >= m_length) {
-                for(auto &pixel: white_pixels) {
-                    dst[dst_pitch * pixel.second + pixel.first] = src[src_pitch * pixel.second + pixel.first];
+            Visit(x,y);
+            if(!IsWhite(src[src_pitch * y + x])) {
+                continue;
+            }
+            buffer[0]=make_pair(x,y);
+            b=1;
+            coordinates.clear();
+            coordinates.emplace_back(x,y);
+            while(!coordinates.empty()){
+                current = coordinates.back();
+                coordinates.pop_back();
+                int x_min = current.first  == 0 ? 0 : current.first - 1;
+                int x_max = current.first  == w - 1 ? w : current.first + 2;
+                int y_min = current.second == 0 ? 0 : current.second - 1;
+                int y_max = current.second == h - 1 ? h : current.second + 2;
+                for (int j = y_min; j < y_max; ++j ) {
+                    for (int i = x_min; i < x_max; ++i ) {
+                        if (!Visited(i,j)){
+                            Visit(i,j);
+                            if(IsWhite(src[j * pitch + i])){
+                                coordinates.emplace_back(i,j);
+                                if(b<m_length){
+                                    buffer[b++] = make_pair(i,j);
+                                } else {
+                                    dst[dst_pitch * j + i] = src[src_pitch * j + i];
+                                }
+                            }
+
+                        }
+                    }
+                }
+            }
+            if(b>=m_length){
+                for(int i = 0;i<m_length;i++){
+                    dst[dst_pitch * buffer[i].second + buffer[i].first] = src[src_pitch * buffer[i].second + buffer[i].first];
                 }
             }
         }
     }
 }
 
-AVSValue __cdecl Create_TMaskCleaner(AVSValue args, void*, IScriptEnvironment* env) 
+AVSValue __cdecl Create_TMaskCleaner(AVSValue args, void*, IScriptEnvironment* env)
 {
     enum { CLIP, LENGTH, THRESH};
     return new TMaskCleaner(args[CLIP].AsClip(), args[LENGTH].AsInt(5), args[THRESH].AsInt(235), env);
