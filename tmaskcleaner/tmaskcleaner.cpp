@@ -103,7 +103,7 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
                     for (int i = x_min; i < x_max; ++i ) {
                         if (!Visited(i,j)){
                             Visit(i,j);
-                            if(IsWhite(src[j * pitch + i])){
+                            if(IsWhite(src[j * src_pitch + i])){
                                 coordinates.emplace_back(i,j);
                                 if(b<m_length){
                                     buffer[b++] = make_pair(i,j);
