@@ -61,7 +61,7 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
     PVideoFrame dst = env->NewVideoFrame(child->GetVideoInfo());
 
     memset(dst->GetWritePtr(PLANAR_Y), 0, dst->GetPitch(PLANAR_Y) * dst->GetHeight(PLANAR_Y));
-    memset(lookup, 1, child->GetVideoInfo().height * child->GetVideoInfo().width);
+    //memset(lookup, 1, child->GetVideoInfo().height * child->GetVideoInfo().width);
 
     ClearMask(dst->GetWritePtr(PLANAR_Y), src->GetReadPtr(PLANAR_Y), dst->GetRowSize(PLANAR_Y), dst->GetHeight(PLANAR_Y),src->GetPitch(PLANAR_Y), dst->GetPitch(PLANAR_Y));
     return dst;
