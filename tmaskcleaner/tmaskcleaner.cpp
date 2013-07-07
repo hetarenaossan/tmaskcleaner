@@ -14,16 +14,14 @@ public:
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env);
 
     ~TMaskCleaner() {
+        delete [] mask;
         delete [] buffer;
-        if (lookup != nullptr) {
-            delete[] lookup;
-        }
     }
 private:
     unsigned int m_length;
     unsigned int m_thresh;
-    Coordinates* buffer;
-    BYTE *lookup;
+    int* buffer;
+    BYTE *mask;
     int m_w;
 
     void ClearMask(BYTE *dst, const BYTE *src, int width, int height, int src_pitch, int dst_pitch);
@@ -32,18 +30,12 @@ private:
         return value >= m_thresh;
     }
 
-    inline bool Visited(int x, int y) {
-        unsigned int normal_pos = y * m_w + x;
-        unsigned int byte_pos = normal_pos / 8;
-
-        return lookup[byte_pos] & (1 << (normal_pos - byte_pos*8));
+    inline bool Visited(int pos) {
+        return mask[pos] != 1;
     }
 
-    inline void Visit(int x, int y) {
-        unsigned int normal_pos = y * m_w + x;
-        unsigned int byte_pos = normal_pos / 8;
-
-        lookup[byte_pos] |= (1 << (normal_pos - byte_pos*8));
+    inline void Visit(int pos) {
+        mask[pos] = 0;
     }
 };
 
@@ -59,8 +51,8 @@ TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironme
     if (length <= 0 || thresh <= 0) {
         env->ThrowError("Invalid arguments!");
     }
-    lookup = new BYTE[child->GetVideoInfo().height * child->GetVideoInfo().width / 8];
-    buffer = new Coordinates[length];
+    buffer = new int[length];
+    mask = new BYTE[child->GetVideoInfo().height * child->GetVideoInfo().width];
     m_w = child->GetVideoInfo().width;
 }
 
@@ -69,7 +61,7 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
     PVideoFrame dst = env->NewVideoFrame(child->GetVideoInfo());
 
     memset(dst->GetWritePtr(PLANAR_Y), 0, dst->GetPitch(PLANAR_Y) * dst->GetHeight(PLANAR_Y));
-    memset(lookup, 0, child->GetVideoInfo().height * child->GetVideoInfo().width / 8);
+    memset(lookup, 1, child->GetVideoInfo().height * child->GetVideoInfo().width);
 
     ClearMask(dst->GetWritePtr(PLANAR_Y), src->GetReadPtr(PLANAR_Y), dst->GetRowSize(PLANAR_Y), dst->GetHeight(PLANAR_Y),src->GetPitch(PLANAR_Y), dst->GetPitch(PLANAR_Y));
     return dst;
@@ -81,14 +73,15 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
     Coordinates current;
     for(int y = 0; y < h; ++y) {
         for(int x = 0; x < w; ++x) {
-            if (Visited(x,y)) {
+            int pos = src_pitch * y + x;
+            if (Visited(pos)) {
                 continue;
             }
-            Visit(x,y);
-            if(!IsWhite(src[src_pitch * y + x])) {
+            Visit(pos);
+            if(!IsWhite(src[pos])) {
                 continue;
             }
-            buffer[0]=make_pair(x,y);
+            buffer[0]=pos;
             b=1;
             coordinates.clear();
             coordinates.emplace_back(x,y);
@@ -101,14 +94,15 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
                 int y_max = current.second == h - 1 ? h : current.second + 2;
                 for (int j = y_min; j < y_max; ++j ) {
                     for (int i = x_min; i < x_max; ++i ) {
-                        if (!Visited(i,j)){
-                            Visit(i,j);
-                            if(IsWhite(src[j * src_pitch + i])){
+                        pos = src_pitch * j + i;
+                        if (!Visited(pos)){
+                            Visit(pos);
+                            if(IsWhite(src[pos])){
                                 coordinates.emplace_back(i,j);
                                 if(b<m_length){
-                                    buffer[b++] = make_pair(i,j);
+                                    buffer[b++] = pos;
                                 } else {
-                                    dst[dst_pitch * j + i] = src[src_pitch * j + i];
+                                    mask[pos] = 0xFF;
                                 }
                             }
 
@@ -118,10 +112,18 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
             }
             if(b>=m_length){
                 for(int i = 0;i<m_length;i++){
-                    dst[dst_pitch * buffer[i].second + buffer[i].first] = src[src_pitch * buffer[i].second + buffer[i].first];
+                    mask[buffer[i]] = 0xFF;
                 }
             }
         }
+    }
+
+    uint32_t* inp = (uint32_t*)src;
+    uint32_t* m = (uint32_t*)mask;
+    uint32_t* res = (uint32_t*)dst;
+    int cnt = (w*h) >> 2;
+    for (int i = 0 ; i < cnt ; i++ ){
+        res[i] = inp[i] & m[i];
     }
 }
 
