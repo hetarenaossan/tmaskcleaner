@@ -95,8 +95,12 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
             while(!coordinates.empty()){
                 current = coordinates.back();
                 coordinates.pop_back();
-                for (int j = current.second-1; j >=0; j-- ) {
-                    for(int i = current.first-1; i>=0 ; i--){
+                int x_min = current.first  == 0 ? 0 : current.first - 1;
+                int x_max = current.first  == w - 1 ? w : current.first + 2;
+                int y_min = current.second == 0 ? 0 : current.second - 1;
+                int y_max = current.second == h - 1 ? h : current.second + 2;
+                for (int j = y_min; j < y_max; ++j ) {
+                    for (int i = x_min; i < x_max; ++i ) {
                         if (!Visited(i,j)){
                             Visit(i,j);
                             if(IsWhite(src[j * src_pitch + i])){
@@ -107,88 +111,10 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
                                     dst[dst_pitch * j + i] = src[src_pitch * j + i];
                                 }
                             }
-                        } else {
-                            break;
+
                         }
                     }
-                    for(int i = current.first+1; i<w ; i++){
-                          if (!Visited(i,j)){
-                            Visit(i,j);
-                            if(IsWhite(src[j * src_pitch + i])){
-                                coordinates.emplace_back(i,j);
-                                if(b<m_length){
-                                    buffer[b++] = make_pair(i,j);
-                                } else {
-                                    dst[dst_pitch * j + i] = src[src_pitch * j + i];
-                                }
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                    int i = current.first;
-                    if (!Visited(i,j)){
-                        Visit(i,j);
-                        if(IsWhite(src[j * src_pitch + i])){
-                            coordinates.emplace_back(i,j);
-                            if(b<m_length){
-                                buffer[b++] = make_pair(i,j);
-                            } else {
-                                dst[dst_pitch * j + i] = src[src_pitch * j + i];
-                            }
-                        }
-                    } else {
-                        break;
-                    }
-                };
-                for (int j = current.second; j <h; j++ ) {
-                    for(int i = current.first-1; i>=0 ; i--){
-                        if (!Visited(i,j)){
-                            Visit(i,j);
-                            if(IsWhite(src[j * src_pitch + i])){
-                                coordinates.emplace_back(i,j);
-                                if(b<m_length){
-                                    buffer[b++] = make_pair(i,j);
-                                } else {
-                                    dst[dst_pitch * j + i] = src[src_pitch * j + i];
-                                }
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                    for(int i = current.first+1; i<w ; i++){
-                        if (!Visited(i,j)){
-                            Visit(i,j);
-                            if(IsWhite(src[j * src_pitch + i])){
-                                coordinates.emplace_back(i,j);
-                                if(b<m_length){
-                                    buffer[b++] = make_pair(i,j);
-                                } else {
-                                    dst[dst_pitch * j + i] = src[src_pitch * j + i];
-                                }
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-                    if(j>current.second){
-                        int i = current.first;
-                        if (!Visited(i,j)){
-                            Visit(i,j);
-                            if(IsWhite(src[j * src_pitch + i])){
-                                coordinates.emplace_back(i,j);
-                                if(b<m_length){
-                                    buffer[b++] = make_pair(i,j);
-                                } else {
-                                    dst[dst_pitch * j + i] = src[src_pitch * j + i];
-                                }
-                            }
-                        } else {
-                            break;
-                        }
-                    };
-                };
+                }
             }
             if(b>=m_length){
                 for(int i = 0;i<m_length;i++){
