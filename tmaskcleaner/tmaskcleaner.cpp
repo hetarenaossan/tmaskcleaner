@@ -42,8 +42,7 @@ private:
 TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironment* env) :
     GenericVideoFilter(child),
     m_length(length),
-    m_thresh(thresh),
-    lookup(nullptr)
+    m_thresh(thresh)
 {
     if (!child->GetVideoInfo().IsYV12()) {
         env->ThrowError("Only YV12 and YV24 is supported!");
@@ -117,10 +116,10 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
         }
     }
 
-    uint32_t* inp = (uint32_t*)src;
-    uint32_t* m = (uint32_t*)mask;
-    uint32_t* res = (uint32_t*)dst;
-    int cnt = (w*h) >> 2;
+    unsigned int* inp = (unsigned int*)src;
+    unsigned int* m = (unsigned int*)mask;
+    unsigned int* res = (unsigned int*)dst;
+    int cnt = (w*h) / sizeof(unsigned int);
     for (int i = 0 ; i < cnt ; i++ ){
         res[i] = inp[i] & m[i];
     }
