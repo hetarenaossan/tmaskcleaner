@@ -2,10 +2,13 @@
 #include <vector>
 #include <list>
 #include <memory>
+#include <map>
 #pragma warning(disable: 4512 4244 4100)
 #include "avisynth.h"
 #pragma warning(default: 4512 4244 4100)
 #include <mutex>
+#include <thread>
+#include <cstring>
 
 typedef std::pair<int, int> Coordinates;
 
@@ -133,26 +136,36 @@ public:
 
     ~TMaskCleaner() {
         if(row!=nullptr) delete [] row;
+        if(cache!=nullptr) delete [] cache;
     }
 private:
     unsigned int m_length;
     unsigned int m_thresh;
+    mutable std::mutex m;
+    Array<BYTE> * cache;
+    int chunk;
+
     int* row;
+    const int mt;
     DynamicBuffer<int> buffer;
     DynamicBuffer<BYTE> mask;
     int m_w;
+    int m_h;
     int size;
 
     void ClearMask(BYTE *dst, const BYTE *src, int width, int height, int src_pitch, int dst_pitch);
 };
 
-TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironment* env) :
+TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, int mt_, IScriptEnvironment* env) :
     GenericVideoFilter(child),
     m_length(length),
     m_thresh(thresh),
     row(nullptr),
     buffer(length),
-    mask(child->GetVideoInfo().height * child->GetVideoInfo().width)
+    mask(child->GetVideoInfo().height * child->GetVideoInfo().width),
+    mt(mt_),
+    chunk(-1),
+    cache(nullptr)
 {
     if (!child->GetVideoInfo().IsYV12()) {
         env->ThrowError("Only YV12 and YV24 is supported!");
@@ -161,18 +174,39 @@ TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironme
         env->ThrowError("Invalid arguments!");
     }
     m_w = child->GetVideoInfo().width;
-    int h= child->GetVideoInfo().height;
-    row = new int[h];
-    for(int i=0,v=0;i<h;i++,v+=m_w){
+    m_h= child->GetVideoInfo().height;
+    cache = new Array<BYTE>[mt];
+    for(int i=0,i<mt,i++){
+        cache[i] = Array<BYTE>(m_w*m_h);
+    }
+    row = new int[m_h];
+    for(int i=0,v=0;i<m_h;i++,v+=m_w){
         row[i]=v;
     }
 }
 
 PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
-    PVideoFrame src = child->GetFrame(n,env);
+    std::lock_guard<std::mutex> lock(m);
+    int cur = n /mt;
+    if(cur != chunk){
+        chunk = cur;
+        std::vector<std::thread> v;
+        PVideoFrame src[mt];
+        for(int i =1;i<mt;i++){
+            src[i] = child->GetFrame(n+i,env);
+            v.emplace_back([n,i,&src,this](){
+                ClearMask(cache[i].ptr, src[i]->GetReadPtr(PLANAR_Y), src[i]->GetRowSize(PLANAR_Y), src[i]->GetHeight(PLANAR_Y),src[i]->GetPitch(PLANAR_Y), src[i]->GetPitch(PLANAR_Y));
+            })
+        }
+        src[0] = child->GetFrame(n+i,env);
+        ClearMask(cache[0].ptr, src[0]->GetReadPtr(PLANAR_Y), src[0]->GetRowSize(PLANAR_Y), src[0]->GetHeight(PLANAR_Y),src[0]->GetPitch(PLANAR_Y), src[0]->GetPitch(PLANAR_Y));
+        for(int i=1,i<mt,i++){
+            v[i].join();
+        }
+    }
+    int c = n-cur*mt;
     PVideoFrame dst = env->NewVideoFrame(child->GetVideoInfo());
-
-    ClearMask(dst->GetWritePtr(PLANAR_Y), src->GetReadPtr(PLANAR_Y), dst->GetRowSize(PLANAR_Y), dst->GetHeight(PLANAR_Y),src->GetPitch(PLANAR_Y), dst->GetPitch(PLANAR_Y));
+    memcpy(dst->GetWritePtr(PLANAR_Y),cache[c].ptr,m_w*m_h);
     return dst;
 }
 
@@ -243,11 +277,11 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
 
 AVSValue __cdecl Create_TMaskCleaner(AVSValue args, void*, IScriptEnvironment* env)
 {
-    enum { CLIP, LENGTH, THRESH};
-    return new TMaskCleaner(args[CLIP].AsClip(), args[LENGTH].AsInt(5), args[THRESH].AsInt(235), env);
+    enum { CLIP, LENGTH, THRESH, MT};
+    return new TMaskCleaner(args[CLIP].AsClip(), args[LENGTH].AsInt(5), args[THRESH].AsInt(235), args[MT].AsInt(1), env);
 }
 
 extern "C" __declspec(dllexport) const char* __stdcall AvisynthPluginInit2(IScriptEnvironment* env) {
-    env->AddFunction("TMaskCleaner", "c[length]i[thresh]i", Create_TMaskCleaner, 0);
+    env->AddFunction("TMaskCleaner", "c[length]i[thresh]i[mt]i", Create_TMaskCleaner, 0);
     return "Why are you looking at this?";
 }
