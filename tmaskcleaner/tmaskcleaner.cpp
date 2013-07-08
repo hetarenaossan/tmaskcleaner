@@ -18,7 +18,7 @@ namespace {
     class Array {
         friend class ArrayAccessor<T>;
     private:
-        std::mutex m;
+        mutable std::mutex m;
         bool l;
     public:
         int size;
@@ -118,7 +118,7 @@ namespace {
                 }
             }
             list.emplace_back(new Array<T>(size));
-            return ArrayAccessor<T>(list.back.get());
+            return ArrayAccessor<T>(list.back().get());
         }
     };
 }
