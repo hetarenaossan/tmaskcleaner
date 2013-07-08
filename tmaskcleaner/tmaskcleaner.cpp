@@ -176,7 +176,7 @@ TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, int mt_, IScript
     m_w = child->GetVideoInfo().width;
     m_h= child->GetVideoInfo().height;
     cache = new Array<BYTE>[mt];
-    for(int i=0,i<mt,i++){
+    for(int i=0;i<mt;i++){
         cache[i] = Array<BYTE>(m_w*m_h);
     }
     row = new int[m_h];
