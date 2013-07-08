@@ -131,7 +131,7 @@ namespace {
 
 class TMaskCleaner : public GenericVideoFilter {
 public:
-    TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironment*);
+    TMaskCleaner(PClip child, int length, int thresh, int mt, IScriptEnvironment*);
     PVideoFrame __stdcall GetFrame(int n, IScriptEnvironment* env);
 
     ~TMaskCleaner() {
@@ -188,23 +188,26 @@ TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, int mt_, IScript
 PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
     std::lock_guard<std::mutex> lock(m);
     int cur = n /mt;
+    int c = n-cur*mt;
+    int nf = child->GetVideoInfo().num_frames;
     if(cur != chunk){
         chunk = cur;
         std::vector<std::thread> v;
         PVideoFrame src[mt];
-        for(int i =1;i<mt;i++){
+        int t = (chunk*mt+mt) >= nf ? nf%mt : mt;
+        for(int i =1;i<t;i++){
             src[i] = child->GetFrame(n+i,env);
-            v.emplace_back([n,i,&src,this](){
-                ClearMask(cache[i].ptr, src[i]->GetReadPtr(PLANAR_Y), src[i]->GetRowSize(PLANAR_Y), src[i]->GetHeight(PLANAR_Y),src[i]->GetPitch(PLANAR_Y), src[i]->GetPitch(PLANAR_Y));
-            })
+            PVideoFrame f = src[i];
+            v.emplace_back([n,i,&f,this](){
+                ClearMask(cache[i].ptr, f->GetReadPtr(PLANAR_Y), f->GetRowSize(PLANAR_Y), f->GetHeight(PLANAR_Y),f->GetPitch(PLANAR_Y), f->GetPitch(PLANAR_Y));
+            });
         }
         src[0] = child->GetFrame(n+i,env);
         ClearMask(cache[0].ptr, src[0]->GetReadPtr(PLANAR_Y), src[0]->GetRowSize(PLANAR_Y), src[0]->GetHeight(PLANAR_Y),src[0]->GetPitch(PLANAR_Y), src[0]->GetPitch(PLANAR_Y));
-        for(int i=1,i<mt,i++){
+        for(int i=1;i<t;i++){
             v[i].join();
         }
     }
-    int c = n-cur*mt;
     PVideoFrame dst = env->NewVideoFrame(child->GetVideoInfo());
     memcpy(dst->GetWritePtr(PLANAR_Y),cache[c].ptr,m_w*m_h);
     return dst;
