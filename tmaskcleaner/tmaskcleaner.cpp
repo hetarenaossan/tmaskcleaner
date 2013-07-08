@@ -158,9 +158,10 @@ TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironme
         env->ThrowError("Invalid arguments!");
     }
     m_w = child->GetVideoInfo().width;
-    row = new int[child->GetVideoInfo().height];
-    for(int i=0,v=0;i<row.size;i++,v+=m_w){
-        row.ptr[i]=v;
+    int h= child->GetVideoInfo().height;
+    row = new int[h];
+    for(int i=0,v=0;i<h;i++,v+=m_w){
+        row[i]=v;
     }
 }
 
@@ -175,14 +176,14 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
 void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_pitch, int dst_pitch) {
     ArrayAccessor<int> buffer_accessor = buffer.GetBuffer();
     ArrayAccessor<BYTE> mask_accessor = mask.GetBuffer();
-    buf = buffer_accessor.ptr;
-    m = mask_accessor.ptr;
+    int* buf = buffer_accessor.ptr;
+    BYTE* m = mask_accessor.ptr;
     memset(m,1,h*w);
     std::vector<Coordinates> coordinates;
     int b;
     Coordinates current;
     for(int y = 0; y < h; ++y) {
-    j    for(int x = 0; x < w; ++x) {
+        for(int x = 0; x < w; ++x) {
             int pos = src_pitch * y + x;
             if (m[pos]!=1) {
                 continue;
