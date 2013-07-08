@@ -51,7 +51,7 @@ namespace {
         }
 
         bool locked() const {
-            std::lock<std::mutex> lock(m);
+            std::lock_guard<std::mutex> lock(m);
             return l;
         }
     };
@@ -67,7 +67,7 @@ namespace {
             array(array_),
             ptr(array_->ptr)
         {
-            std::lock<std::mutex> lock(array->m);
+            std::lock_guard<std::mutex> lock(array->m);
             array->l = true;
         }
 
@@ -92,7 +92,7 @@ namespace {
 
         ~ArrayAccessor() {
             if(array!=nullptr){
-                std::lock<std::mutex> lock(array->m);
+                std::lock_guard<std::mutex> lock(array->m);
                 array->l = false;
             }
         }
@@ -103,17 +103,18 @@ namespace {
     private:
         std::mutex m;
         int size;
-        std::list<std::unique_ptr<Array<T>>> list;
+        typedef std::list<std::unique_ptr<Array<T>>> List;
+        List list;
     public:
         DynamicBuffer(int size_):
             size(size_)
         {};
 
         ArrayAccessor<T> GetBuffer(){
-            std::lock<std::mutex> lock(m);
-            for(auto i:list){
-                if(!i->locked()){
-                    return ArrayAccessor<T>(i.get());
+            std::lock_guard<std::mutex> lock(m);
+            for(List::const_iterator i = list.begin();i!=list.end();i++){
+                if(!(*i)->locked()){
+                    return ArrayAccessor<T>((*i).get());
                 }
             }
             list.emplace_back(new Array<T>(size));
@@ -230,11 +231,11 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
     }
 
     unsigned int* inp = (unsigned int*)src;
-    unsigned int* m = (unsigned int*)m;
+    unsigned int* ms = (unsigned int*)m;
     unsigned int* res = (unsigned int*)dst;
     int cnt = (w*h) / sizeof(unsigned int);
     for (int i = 0 ; i < cnt ; i++ ){
-        res[i] = inp[i] & m[i];
+        res[i] = inp[i] & ms[i];
     }
 }
 
