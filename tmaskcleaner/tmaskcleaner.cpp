@@ -116,7 +116,7 @@ namespace {
                     return ArrayAccessor<T>(i.get());
                 }
             }
-            list.emplace_back(new Array(size));
+            list.emplace_back(new Array<T>(size));
             return ArrayAccessor<T>(list.back.get());
         }
     };
