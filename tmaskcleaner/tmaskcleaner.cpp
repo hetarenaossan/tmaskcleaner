@@ -7,9 +7,7 @@
 #pragma warning(default: 4512 4244 4100)
 #include <mutex>
 
-using namespace std;
-
-typedef pair<int, int> Coordinates;
+typedef std::pair<int, int> Coordinates;
 
 namespace {
 
@@ -20,10 +18,10 @@ namespace {
     class Array {
         friend class ArrayAccessor<T>;
     private:
-        mutex m;
-        bool locked;
+        std::mutex m;
+        bool l;
     public:
-        const int size;
+        int size;
         T* ptr;
 
         Array(int size_):
@@ -53,8 +51,8 @@ namespace {
         }
 
         bool locked() const {
-            std::lock<mutex> lock(m);
-            return locked;
+            std::lock<std::mutex> lock(m);
+            return l;
         }
     };
 
@@ -69,8 +67,8 @@ namespace {
             array(array_),
             ptr(array_->ptr)
         {
-            std::lock<mutex> lock(array->m);
-            array->locked = true;
+            std::lock<std::mutex> lock(array->m);
+            array->l = true;
         }
 
         ArrayAccessor():
@@ -94,8 +92,8 @@ namespace {
 
         ~ArrayAccessor() {
             if(array!=nullptr){
-                std::lock<mutex> lock(array->m);
-                array->locked = false;
+                std::lock<std::mutex> lock(array->m);
+                array->l = false;
             }
         }
     };
@@ -103,7 +101,7 @@ namespace {
     template <class T>
     class DynamicBuffer {
     private:
-        mutex m;
+        std::mutex m;
         int size;
         std::list<std::unique_ptr<Array<T>>> list;
     public:
@@ -112,7 +110,7 @@ namespace {
         {};
 
         ArrayAccessor<T> GetBuffer(){
-            std::lock<mutex> lock(m);
+            std::lock<std::mutex> lock(m);
             for(auto i:list){
                 if(!i->locked()){
                     return ArrayAccessor<T>(i.get());
@@ -180,7 +178,7 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
     buf = buffer_accessor.ptr;
     m = mask_accessor.ptr;
     memset(m,1,h*w);
-    vector<Coordinates> coordinates;
+    std::vector<Coordinates> coordinates;
     int b;
     Coordinates current;
     for(int y = 0; y < h; ++y) {
