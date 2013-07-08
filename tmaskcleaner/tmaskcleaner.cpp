@@ -170,8 +170,6 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
     PVideoFrame src = child->GetFrame(n,env);
     PVideoFrame dst = env->NewVideoFrame(child->GetVideoInfo());
 
-    memset(mask, 1, child->GetVideoInfo().height * child->GetVideoInfo().width);
-
     ClearMask(dst->GetWritePtr(PLANAR_Y), src->GetReadPtr(PLANAR_Y), dst->GetRowSize(PLANAR_Y), dst->GetHeight(PLANAR_Y),src->GetPitch(PLANAR_Y), dst->GetPitch(PLANAR_Y));
     return dst;
 }
@@ -181,11 +179,12 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
     ArrayAccessor<BYTE> mask_accessor = mask.GetBuffer();
     buf = buffer_accessor.ptr;
     m = mask_accessor.ptr;
+    memset(m,1,h*w);
     vector<Coordinates> coordinates;
     int b;
     Coordinates current;
     for(int y = 0; y < h; ++y) {
-        for(int x = 0; x < w; ++x) {
+    j    for(int x = 0; x < w; ++x) {
             int pos = src_pitch * y + x;
             if (m[pos]!=1) {
                 continue;
