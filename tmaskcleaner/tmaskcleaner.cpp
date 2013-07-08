@@ -198,7 +198,7 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
         for(int i =1;i<t;i++){
             src[i] = child->GetFrame(n+i,env);
             PVideoFrame f = src[i];
-            v.emplace_back([n,i,&f,this](){
+            v.emplace_back([n,i,f,this](){
                 ClearMask(cache[i].ptr, f->GetReadPtr(PLANAR_Y), f->GetRowSize(PLANAR_Y), f->GetHeight(PLANAR_Y),f->GetPitch(PLANAR_Y), f->GetPitch(PLANAR_Y));
             });
         }
