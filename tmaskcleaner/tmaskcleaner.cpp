@@ -25,13 +25,15 @@ namespace {
         T* ptr;
 
         Array(int size_):
-            size(size)
+            size(size),
+            l(false)
         {
             ptr = new T[size];
         }
 
         Array():
-            ptr(nullptr)
+            ptr(nullptr),
+            l(false)
         {};
 
         ~Array(){
@@ -209,7 +211,7 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
                         pos = src_pitch * j + i;
                         if (m[pos]==1){
                             m[pos]=0;
-                            if(src[pos]<=m_thresh){
+                            if(src[pos]>m_thresh){
                                 coordinates.emplace_back(i,j);
                                 if(b<m_length){
                                     buf[b++] = pos;
