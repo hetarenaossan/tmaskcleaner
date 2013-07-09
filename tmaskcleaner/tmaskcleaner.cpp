@@ -1,6 +1,6 @@
 #include <Windows.h>
 #include <vector>
-#include <list>
+#include <stack>
 #include <memory>
 #pragma warning(disable: 4512 4244 4100)
 #include "avisynth.h"
@@ -17,24 +17,17 @@ namespace {
 
     template <class T>
     class Array {
-        friend class ArrayAccessor<T>;
-    private:
-        mutable std::mutex m;
-        bool l;
     public:
-        int size;
         T* ptr;
 
-        Array(int size_):
-            size(size),
+        Array(int size):
             l(false)
         {
             ptr = new T[size];
         }
 
         Array():
-            ptr(nullptr),
-            l(false)
+            ptr(nullptr)
         {};
 
         ~Array(){
@@ -42,8 +35,7 @@ namespace {
         }
 
         Array(Array<T>&& a):
-            ptr(a.ptr),
-            l(a.l)
+            ptr(a.ptr)
         {
             a.ptr = nullptr;
         }
@@ -51,81 +43,35 @@ namespace {
         Array<T>& operator=(Array<T>&& a){
             ptr = a.ptr;
             a.ptr = nullptr;
-            l = a.l;
             return *this;
-        }
-
-        bool locked() const {
-            std::lock_guard<std::mutex> lock(m);
-            return l;
-        }
-    };
-
-    template <class T>
-    class ArrayAccessor {
-    private:
-        Array<T> * array;
-    public:
-        T* ptr;
-
-        ArrayAccessor(Array<T>* array_):
-            array(array_),
-            ptr(array_->ptr)
-        {
-            std::lock_guard<std::mutex> lock(array->m);
-            array->l = true;
-        }
-
-        ArrayAccessor():
-            array(nullptr),
-            ptr(nullptr)
-        {}
-
-        ArrayAccessor(ArrayAccessor<T>&& a):
-            array(a.array),
-            ptr(a.ptr)
-        {
-            a.array = nullptr;
-        }
-
-        ArrayAccessor<T>& operator=(ArrayAccessor<T>&& a){
-            array = a.array;
-            ptr = a.ptr;
-            a.array = nullptr;
-            return *this;
-        }
-
-        ~ArrayAccessor() {
-            if(array!=nullptr){
-                std::lock_guard<std::mutex> lock(array->m);
-                array->l = false;
-            }
         }
     };
 
     template <class T>
     class DynamicBuffer {
     private:
-        std::mutex m;
+        mutable std::mutex m;
         int size;
-        typedef std::list<std::unique_ptr<Array<T>>> List;
-        List list;
+        std::stack<Array<T>> stack;
     public:
         DynamicBuffer(int size_):
             size(size_)
         {};
 
-        ArrayAccessor<T> GetBuffer(){
+        Array<T> Acquire(){
             std::lock_guard<std::mutex> lock(m);
-            for(List::const_iterator it=list.begin();it!=list.end();it++){
-                if(!(*it)->locked()){
-                    ArrayAccessor<T> a((*it).get());
-                    return a;
-                }
+            if(!stack.empty()){
+                Array<T> a = std::move(stack.top());
+                stack.pop();
+                return a;
+            } else {
+                return Array<T>(size);
             }
-            list.emplace_back(new Array<T>(size));
-            ArrayAccessor<T> a(list.back().get());
-            return a;
+        }
+
+        void Release(Array<T>& v){
+            std::lock_guard<std::mutex> lock(m);
+            stack.push(std::move(v));
         }
     };
 }
@@ -181,9 +127,9 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
 }
 
 void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_pitch, int dst_pitch) {
-    ArrayAccessor<int> buffer_accessor = buffer.GetBuffer();
-    ArrayAccessor<BYTE> mask_accessor = mask.GetBuffer();
-    ArrayAccessor<Coordinates> coords_accessor = coords.GetBuffer();
+    Array<int> buffer_accessor = buffer.Acquire();
+    Array<BYTE> mask_accessor = mask.Acquire();
+    Array<Coordinates> coords_accessor = coords.Acquire();
     int* buf = buffer_accessor.ptr;
     BYTE* m = mask_accessor.ptr;
     Coordinates* coordinates = coords_accessor.ptr;
@@ -262,6 +208,9 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
             dp+= dov;
         }
     }
+    buffer.Release(buffer_accessor);
+    mask.Release(mask_accessor);
+    coords.Release(coords_accessor);
 }
 
 AVSValue __cdecl Create_TMaskCleaner(AVSValue args, void*, IScriptEnvironment* env)
