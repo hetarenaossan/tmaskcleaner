@@ -20,8 +20,7 @@ namespace {
     public:
         T* ptr;
 
-        Array(int size):
-            l(false)
+        Array(int size)
         {
             ptr = new T[size];
         }
