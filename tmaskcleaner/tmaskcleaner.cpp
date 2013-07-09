@@ -26,7 +26,8 @@ namespace {
         T* ptr;
 
         Array(int size_):
-            size(size)
+            size(size),
+            l(false)
         {
             ptr = new T[size];
         }
@@ -52,7 +53,7 @@ namespace {
         }
 
         bool locked() const {
-            std::lock<std::mutex> lock(m);
+            std::lock_guard<std::mutex> lock(m);
             return l;
         }
     };
@@ -68,7 +69,7 @@ namespace {
             array(array_),
             ptr(array_->ptr)
         {
-            std::lock<std::mutex> lock(array->m);
+            std::lock_guard<std::mutex> lock(array->m);
             array->l = true;
         }
 
@@ -93,7 +94,7 @@ namespace {
 
         ~ArrayAccessor() {
             if(array!=nullptr){
-                std::lock<std::mutex> lock(array->m);
+                std::lock_guard<std::mutex> lock(array->m);
                 array->l = false;
             }
         }
@@ -111,13 +112,13 @@ namespace {
         {};
 
         ArrayAccessor<T> GetBuffer(){
-            std::lock<std::mutex> lock(m);
-            for(auto i:list){
-                if(!i->locked()){
-                    return ArrayAccessor<T>(i.get());
+            std::lock_guard<std::mutex> lock(m);
+            for(auto it=list.begin();it!=list.end();it++){
+                if(!(*it)->locked()){
+                    return ArrayAccessor<T>((*it).get());
                 }
             }
-            list.emplace_back(new Array(size));
+            list.emplace_back(new Array<T>(size));
             return ArrayAccessor<T>(list.back.get());
         }
     };
