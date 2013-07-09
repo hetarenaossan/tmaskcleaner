@@ -108,7 +108,8 @@ namespace {
     private:
         std::mutex m;
         int size;
-        std::list<std::unique_ptr<Array<T>>> list;
+        typedef std::list<std::unique_ptr<Array<T>>> List;
+        List list;
     public:
         DynamicBuffer(int size_):
             size(size_)
@@ -116,7 +117,7 @@ namespace {
 
         ArrayAccessor<T> GetBuffer(){
             std::lock_guard<std::mutex> lock(m);
-            for(const auto it=list.begin();it!=list.end();it++){
+            for(List::const_iterator it=list.begin();it!=list.end();it++){
                 if(!(*it)->locked()){
                     ArrayAccessor<T> a((*it).get());
                     return a;
