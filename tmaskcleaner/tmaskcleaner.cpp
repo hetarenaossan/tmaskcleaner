@@ -115,11 +115,13 @@ namespace {
             std::lock_guard<std::mutex> lock(m);
             for(auto it=list.begin();it!=list.end();it++){
                 if(!(*it)->locked()){
-                    return ArrayAccessor<T>((*it).get());
+                    ArrayAccessor<T> a((*it).get())
+                    return a;
                 }
             }
             list.emplace_back(new Array<T>(size));
-            return ArrayAccessor<T>(list.back().get());
+            ArrayAccessor<T> a(list.back().get())
+            return a;
         }
     };
 }
