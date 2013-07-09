@@ -181,6 +181,7 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
     BYTE* m = mask_accessor.ptr;
     Coordinates* coordinates = coords_accessor.ptr;
     memset(m,1,h*src_pitch);
+    memset(dst,0,h*dst_pitch);
     int b,cs;
     Coordinates current;
     for(int y = 0; y < h; ++y) {
@@ -237,7 +238,8 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
         for(int x=0; x < m16; x++){
             __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src+sp));
             __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(m+sp));
-            _mm_storeu_si128(reinterpret_cast<__m128i*>(dst+dp), _mm_and_si128(a,b));
+            _mm_maskmoveu_si128(a,b,reinterpret_cast<__m128i*>(dst+dp));
+            //_mm_storeu_si128(reinterpret_cast<__m128i*>(dst+dp), _mm_and_si128(a,b));
             sp+=16;
             dp+=16;
         }
