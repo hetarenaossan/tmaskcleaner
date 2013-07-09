@@ -6,6 +6,7 @@
 #include "avisynth.h"
 #pragma warning(default: 4512 4244 4100)
 #include <mutex>
+#include <emmintrin.h>
 
 typedef std::pair<int, int> Coordinates;
 
