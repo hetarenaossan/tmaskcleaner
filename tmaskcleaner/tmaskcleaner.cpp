@@ -41,7 +41,8 @@ namespace {
         }
 
         Array(Array<T>&& a):
-            ptr(a.ptr)
+            ptr(a.ptr),
+            l(a.l)
         {
             a.ptr = nullptr;
         }
@@ -49,6 +50,7 @@ namespace {
         Array<T>& operator=(Array<T>&& a){
             ptr = a.ptr;
             a.ptr = nullptr;
+            l = a.l;
             return *this;
         }
 
