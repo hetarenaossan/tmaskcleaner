@@ -33,7 +33,8 @@ namespace {
         }
 
         Array():
-            ptr(nullptr)
+            ptr(nullptr),
+            l(false)
         {};
 
         ~Array(){
@@ -115,7 +116,7 @@ namespace {
 
         ArrayAccessor<T> GetBuffer(){
             std::lock_guard<std::mutex> lock(m);
-            for(auto it=list.begin();it!=list.end();it++){
+            for(const auto it=list.begin();it!=list.end();it++){
                 if(!(*it)->locked()){
                     ArrayAccessor<T> a((*it).get());
                     return a;
