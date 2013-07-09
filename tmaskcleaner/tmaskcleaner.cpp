@@ -148,7 +148,7 @@ TMaskCleaner::TMaskCleaner(PClip child, int length, int thresh, IScriptEnvironme
     m_length(length),
     m_thresh(thresh),
     buffer(length),
-    mask(child->GetVideoInfo().height * child->GetVideoInfo().width * 2),
+    mask(child->GetVideoInfo().height * (child->GetVideoInfo().width +16)),
     coords(child->GetVideoInfo().height * child->GetVideoInfo().width)
 {
     if (!child->GetVideoInfo().IsYV12()) {
@@ -175,12 +175,12 @@ PVideoFrame TMaskCleaner::GetFrame(int n, IScriptEnvironment* env) {
 }
 
 void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_pitch, int dst_pitch) {
-    //ArrayAccessor<int> buffer_accessor = buffer.GetBuffer();
-    //ArrayAccessor<BYTE> mask_accessor = mask.GetBuffer();
-    //ArrayAccessor<Coordinates> coords_accessor = coords.GetBuffer();
-    int* buf = new int[m_length];
-    BYTE* m = new BYTE[h*src_pitch];
-    Coordinates* coordinates = new Coordinates[h*w];
+    ArrayAccessor<int> buffer_accessor = buffer.GetBuffer();
+    ArrayAccessor<BYTE> mask_accessor = mask.GetBuffer();
+    ArrayAccessor<Coordinates> coords_accessor = coords.GetBuffer();
+    int* buf = buffer_accessor.ptr;
+    BYTE* m = mask_accessor.ptr;
+    Coordinates* coordinates = coords_accessor.ptr;
     memset(m,1,h*src_pitch);
     int b,cs;
     Coordinates current;
@@ -256,9 +256,6 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
             dp+= dov;
         }
     }
-    delete [] buf;
-    delete [] m;
-    delete [] coordinates;
 }
 
 AVSValue __cdecl Create_TMaskCleaner(AVSValue args, void*, IScriptEnvironment* env)
