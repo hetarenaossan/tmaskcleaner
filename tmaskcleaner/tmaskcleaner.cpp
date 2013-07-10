@@ -187,9 +187,9 @@ void TMaskCleaner::ClearMask(BYTE *dst, const BYTE *src, int w, int h, int src_p
     int dov = dst_pitch - w;
     for(int y = 0,sp =0 ,dp =0; y < h; y++){
         for(int x=0; x < m16; x++){
-            __m128i a = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src+sp));
-            __m128i b = _mm_loadu_si128(reinterpret_cast<const __m128i*>(m+sp));
-            _mm_storeu_si128(reinterpret_cast<__m128i*>(dst+dp), _mm_and_si128(a,b));
+            __m128i a = _mm_load_si128(reinterpret_cast<const __m128i*>(src+sp));
+            __m128i b = _mm_load_si128(reinterpret_cast<const __m128i*>(m+sp));
+            _mm_store_si128(reinterpret_cast<__m128i*>(dst+dp), _mm_and_si128(a,b));
             sp+=16;
             dp+=16;
         }
